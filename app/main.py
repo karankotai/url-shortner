@@ -25,3 +25,16 @@ def encode_base62(num: int) -> str:
 @app.on_event("startup")
 def on_startup():
     Base.metadata.create_all(bind=engine)
+
+@app.post("/shorten", response_model=ShortenResponse)
+def shorted_url(request: ShortenRequest, db: Session = Depends(get_db)):
+    link = ShortLink(original_url=str(request.url), short_code="placeholder")
+    db.add(link)
+    db.flush()
+
+    short_code = encode_base62(link.id)
+    link.short_code = short_code
+    db.commit()
+    db.refresh(link)
+
+    set_cached_url(short_code, link.original_url)
