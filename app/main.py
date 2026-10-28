@@ -57,3 +57,17 @@ def redirect_to_url(short_code:str, db: Session=Depends(get_db)):
     link.clicks += 1
     db.commit()
     return RedirectResponse(url=link.original_url, status_code=302)
+
+@app.get("/stats/{short_code}", response_model=StatsResponse)
+def get_stats(short_code: str, db: Session = Depends(get_db)):
+    # Look up the link in the database
+    link = db.query(ShortLink).filter(ShortLink.short_code == short_code).first()
+    if not link:
+        raise HTTPException(status_code=404, detail = "Short link not found")
+    # Return the stats including click count
+    return StatsResponse(
+        short_code=link.short_code,
+        original_url=link.original_url,
+        clicks=link.clicks,
+        created_at=link.created_at
+    )
