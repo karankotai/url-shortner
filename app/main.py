@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
@@ -6,6 +6,7 @@ from app.database import get_db, engine, Base
 from app.models import ShortLink
 from app.schemas import ShortenRequest, ShortenResponse, StatsResponse
 from app.cache import get_cached_url, set_cached_url
+from app.rate_limit import rate_limit_check
 
 app = FastAPI(title="URL Shortner", version="1.0.0")
 
@@ -27,7 +28,10 @@ def on_startup():
     Base.metadata.create_all(bind=engine)
 
 @app.post("/shorten", response_model=ShortenResponse)
-def shorten_url(request: ShortenRequest, db: Session = Depends(get_db)):
+def shorten_url(request: ShortenRequest, req: Request=None, db: Session = Depends(get_db)):
+
+    rate_limit_check(req)
+
     link = ShortLink(original_url=str(request.url), short_code="temp")
     db.add(link)
     db.flush()
