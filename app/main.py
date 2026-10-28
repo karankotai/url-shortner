@@ -38,3 +38,22 @@ def shorted_url(request: ShortenRequest, db: Session = Depends(get_db)):
     db.refresh(link)
 
     set_cached_url(short_code, link.original_url)
+
+@app.get("/{short_code}")
+def redirect_to_url(short_code:str, db: Session=Depends(get_db)):
+    # Check Redis cache first for fast lookups
+    cached_url = get_cached_url(short_code)
+    if cached_url:
+        # Cache hit: increment clicks in the database
+        db.query(ShortLink).filter(ShortLink.short_code==short_code).update({"clicks": ShortLink.clicks+1})
+        db.commit()
+        return RedirectResponse(url=cached_url, status_code=302)
+    # Cache miss: query PostgreSQL for the original URL
+    link = db.query(ShortLink).filter(ShortLink.short_code == short_code).first()
+    if not link:
+        raise HTTPException(status_code=404, detail = "Short link not found")
+    # Backfill the cache so the next request is fast 
+    set_cached_url(short_code, link.original_url)
+    link.clicks += 1
+    db.commit()
+    return RedirectResponse(url=link.original_url, status_code=302)
