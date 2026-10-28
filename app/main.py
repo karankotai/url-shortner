@@ -9,7 +9,7 @@ from app.cache import get_cached_url, set_cached_url
 
 app = FastAPI(title="URL Shortner", version="1.0.0")
 
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://127.0.0.1:8000"
 
 ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
@@ -20,15 +20,15 @@ def encode_base62(num: int) -> str:
     while num > 0:
         result.append(ALPHABET[num%62])
         num //= 62
-    return "".join(reversed[result])
+    return "".join(reversed(result))
 
 @app.on_event("startup")
 def on_startup():
     Base.metadata.create_all(bind=engine)
 
 @app.post("/shorten", response_model=ShortenResponse)
-def shorted_url(request: ShortenRequest, db: Session = Depends(get_db)):
-    link = ShortLink(original_url=str(request.url), short_code="placeholder")
+def shorten_url(request: ShortenRequest, db: Session = Depends(get_db)):
+    link = ShortLink(original_url=str(request.url), short_code="temp")
     db.add(link)
     db.flush()
 
@@ -38,6 +38,12 @@ def shorted_url(request: ShortenRequest, db: Session = Depends(get_db)):
     db.refresh(link)
 
     set_cached_url(short_code, link.original_url)
+
+    return ShortenResponse(
+        short_code=short_code,
+        short_url=f"{BASE_URL}/{short_code}",
+        original_url=link.original_url,
+    )
 
 @app.get("/{short_code}")
 def redirect_to_url(short_code:str, db: Session=Depends(get_db)):
